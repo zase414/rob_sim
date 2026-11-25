@@ -131,6 +131,7 @@ puzzle.pose                     # maze frame (wire origin on the plate top) in t
 puzzle.marker_corners()         # {1: 4x3, 2: 4x3} corners in cv2.aruco order
 puzzle.marker_poses()           # {1: 4x4, 2: 4x4}
 puzzle.wire_through_hoop(robot.fk(q) @ HOOP_IN_FLANGE)   # is the hoop on the wire
+                                # (Bosch: robot.flange_pose(q) instead of robot.fk(q))
 ```
 
 How contacts are checked: the robot's exact URDF meshes (hoop, adapter and
@@ -296,7 +297,8 @@ robot.
 
 ## Simulator-only options
 
-All of these are keyword arguments of `CRS97(...)`:
+All of these are keyword arguments of every simulated robot (`CRS97(...)`,
+`CRS93(...)`, `Rv6s(...)`, `RobotBosch(...)`):
 
 | Option               | Default  | Meaning                                                                                                                                                       |
 | :------------------- | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
