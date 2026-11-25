@@ -1,9 +1,10 @@
 # rob_sim
 
-Simulator of the **CRS97** and **Mitsubishi RV-6S** arms for the ROB1 hoop and
-wire puzzle task. It has the same interface as the real drivers
-([`ctu_crs`](https://pypi.org/project/ctu-crs/),
-[`ctu_mitsubishi`](https://pypi.org/project/ctu-mitsubishi/)), so the same
+Simulator of the **CRS97**, **CRS93**, **Mitsubishi RV-6S** and **Bosch SR450**
+arms for the ROB1 hoop and wire puzzle task. It has the same interface as the
+real drivers ([`ctu_crs`](https://pypi.org/project/ctu-crs/),
+[`ctu_mitsubishi`](https://pypi.org/project/ctu-mitsubishi/),
+[`ctu_bosch_sr450`](https://pypi.org/project/ctu-bosch-sr450/)), so the same
 script runs on the real robot and in the simulator without changes.
 
 ## Setup
@@ -35,9 +36,15 @@ Options for the simulated scene go before `src/main.py`, for example
 At the end the simulator prints a verdict: contacts with the puzzle and how far
 down the wire the hoop got.
 
-On the Mitsubishi, write `from ctu_mitsubishi import Rv6s` / `robot = Rv6s()`
-instead and run it the same way. The simulator gives you whichever robot your
-script creates.
+On the other robots, create them the way you would on the real one and run the
+script the same way. The simulator gives you whichever robot your script creates:
+
+| Robot          | In your script                                                      |
+| :------------- | :------------------------------------------------------------------ |
+| CRS97          | `from ctu_crs import CRS97`, then `robot = CRS97()`                 |
+| CRS93          | `from ctu_crs import CRS93`, then `robot = CRS93()`                 |
+| Mitsubishi     | `from ctu_mitsubishi import Rv6s`, then `robot = Rv6s()`            |
+| Bosch SR450    | `from ctu_bosch_sr450 import RobotBosch`, then `robot = RobotBosch()` |
 
 Other entry points:
 
@@ -54,14 +61,17 @@ simulator is to the real robots) is in [README.AGENTS.md](README.AGENTS.md).
 This is a fork of [Amanak421/crs_sim](https://github.com/Amanak421/crs_sim) by
 Jakub Andrlík, cut down to a clean starting point for students.
 
-The puzzle CAD models come from
+The puzzle, adapter and hoop CAD models come from
 [pilcsimo/ROB1-2025-hw](https://github.com/pilcsimo/ROB1-2025-hw) (GPL-3.0).
-They are not included here; they are downloaded to `~/.cache/crs_sim/` the
-first time you use them.
+The puzzles are not included here; they are downloaded to `~/.cache/crs_sim/`
+the first time you use them. The adapter and hoop meshes in
+`crs_sim/urdf/meshes/` are converted from its `robot_ee/*.step` files.
 
 ## License
 
 The kinematics and robot parameters are taken from `ctu_crs` (BSD 3-Clause,
 Copyright (c) 2023, CTURobotics), see [LICENSE-ctu_crs](LICENSE-ctu_crs). The
 RV-6S kinematics are taken from `ctu_mitsubishi` (BSD 3-Clause, Copyright (c)
-2023, CTURobotics), see [LICENSE-ctu_mitsubishi](LICENSE-ctu_mitsubishi).
+2023, CTURobotics), see [LICENSE-ctu_mitsubishi](LICENSE-ctu_mitsubishi). The
+SR450 kinematics are taken from `ctu_bosch_sr450` (BSD 3-Clause, Copyright (c)
+2023, CTURobotics), see [LICENSE-ctu_bosch_sr450](LICENSE-ctu_bosch_sr450).

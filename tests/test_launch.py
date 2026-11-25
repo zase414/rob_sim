@@ -65,6 +65,26 @@ robot.close_connection()
 '''
 
 
+# The Bosch SR450 threads the same wire with its hoop horizontal, flange at
+# x = 0.315 (phi = 0); its table is higher (default_table_z = 0.15)
+SCRIPT_BOSCH = '''
+import sys
+import numpy as np
+from ctu_bosch_sr450 import RobotBosch
+
+robot = RobotBosch()
+robot.initialize()
+for z in (-0.063, -0.113, -0.163, -0.213):
+    robot.move_to_q(np.array([0.687, -1.604, z, 0.0]))
+    robot.wait_for_motion_stop()
+if "--bump" in sys.argv:
+    robot.move_to_q(robot.get_q() + [0.08, 0, 0, 0])
+    robot.wait_for_motion_stop()
+print("image", robot.grab_image().shape)
+robot.close()
+'''
+
+
 def launch(*args, cwd=ROOT):
     return subprocess.run([sys.executable, "-m", "crs_sim.launch", *map(str, args)],
                           capture_output=True, text=True, cwd=cwd, timeout=300)
@@ -110,6 +130,30 @@ def test_mitsubishi_script_runs_in_scene(tmp_path, puzzle_files, bump):
     assert "hoop threaded down to" in out
 
 
+@pytest.mark.parametrize("bump", [False, True])
+def test_bosch_script_runs_in_scene(tmp_path, puzzle_files, bump):
+    script = tmp_path / "solution.py"
+    script.write_text(SCRIPT_BOSCH)
+    result = launch("--headless", "--speedup", "inf", "--puzzle", "A",
+                    "--x", 0.45, script, *(["--bump"] if bump else []))
+    out = result.stdout
+    assert result.returncode == 0, result.stderr
+    assert "image (2050, 2448, 3)" in out
+    assert "robot RobotBosch" in out
+    assert "z=0.1550" in out                     # the Bosch's default table
+    assert f"{int(bump)} contact(s)" in out
+    assert "hoop threaded down to" in out
+
+
+def test_crs93_stand_in(tmp_path):
+    script = tmp_path / "crs93.py"
+    script.write_text("from ctu_crs import CRS93\nr = CRS93()\nr.initialize()\n"
+                      "r.move_to_q(r.q_home)\nr.wait_for_motion_stop()\n")
+    result = launch("--headless", "--speedup", "inf", "--puzzle", "none", script)
+    assert result.returncode == 0, result.stderr
+    assert "robot CRS93" in result.stdout
+
+
 def test_one_robot_per_scene(tmp_path):
     script = tmp_path / "two.py"
     script.write_text("from ctu_crs import CRS97\nfrom ctu_mitsubishi import Rv6s\n"
@@ -145,10 +189,10 @@ def test_script_errors_still_give_verdict(tmp_path):
 
 
 def test_unsimulated_ctu_crs_names_fail_clearly(tmp_path):
-    script = tmp_path / "crs93.py"
-    script.write_text("import ctu_crs\nctu_crs.CRS93()\n")
+    script = tmp_path / "crs92.py"
+    script.write_text("import ctu_crs\nctu_crs.CRS92()\n")
     result = launch("--headless", "--puzzle", "none", script)
-    assert "only CRS97 is" in result.stderr
+    assert "only CRS93 and CRS97 are" in result.stderr
 
 
 def test_solution_does_not_import_simulator():

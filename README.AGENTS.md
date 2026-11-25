@@ -4,13 +4,17 @@ Detailed reference of the simulator (package `crs_sim`), for students and
 coding agents. For the short version see [README.md](README.md).
 
 
-Standalone simulator of the **CRS97** robotic arm. It has the same interface as
-the real robot's driver [`ctu_crs`](https://pypi.org/project/ctu-crs/), so code
+Standalone simulator of the **CRS97** and **CRS93**, **Mitsubishi RV-6S** and
+**Bosch SR450** robotic arms. Each has the same interface as the real robot's
+driver ([`ctu_crs`](https://pypi.org/project/ctu-crs/),
+[`ctu_mitsubishi`](https://pypi.org/project/ctu-mitsubishi/),
+[`ctu_bosch_sr450`](https://pypi.org/project/ctu-bosch-sr450/)), so code
 written for the hardware runs on the simulator by changing one import:
 
 ```python
 from ctu_crs import CRS97   # real robot
 from crs_sim import CRS97   # simulator
+# likewise CRS93, Rv6s (ctu_mitsubishi), RobotBosch (ctu_bosch_sr450)
 ```
 
 The robot is rendered from its URDF + STL meshes in a [MeshCat](https://github.com/meshcat-dev/meshcat-python)
@@ -57,12 +61,14 @@ python src/main.py                         # connected to the real robot (ctu_cr
 ```
 
 `./sim.sh` (= `python -m crs_sim.launch`) builds the scene, provides
-stand-ins for `ctu_crs` and `ctu_mitsubishi` whose `CRS97` / `Rv6s` is the
-simulated robot in it (whichever the script creates), runs the
+stand-ins for `ctu_crs`, `ctu_mitsubishi` and `ctu_bosch_sr450` whose
+`CRS97` / `CRS93` / `Rv6s` / `RobotBosch` is the simulated robot in it
+(whichever the script creates), runs the
 script and prints a verdict at the end (contacts, how far down the wire the
 hoop got). Scene options go **before** the script, the script's own
 arguments after it; `./sim.sh --help` lists them (`--puzzle A..E|none`,
-`--seed` or `--x --y --yaw`, `--table-z`, `--rotation-period`,
+`--seed` or `--x --y --yaw`, `--table-z` (default 0, 0.15 m for the Bosch),
+`--rotation-period`,
 `--rotation-center`, `--lag`, `--noise`, `--camera-width/height/fov`,
 `--camera-renderer`, `--no-camera-window`, `--camera-window-width`,
 `--speedup`, `--headless`, `--on-contact`, `--contact-margin`).
@@ -195,6 +201,14 @@ robot.viz.show_mesh("bracket", "bracket.stl", scale=0.001)       # STL in mm
 The URDF agrees with the DH model to < 1 mm. The rendered `adapter` link equals
 the DH flange frame rotated by π about its y-axis.
 
+### CRS93
+
+`crs_sim.CRS93` stands in for `ctu_crs.CRS93`. It is the same arm as the
+CRS97 (same kinematics, URDF and hoop) with the CRS93's own controller
+parameters from `ctu_crs/params_crs93.yaml`: home switch positions, joint
+limits, default speeds and gripper axis. Everything in the table above holds
+for it too.
+
 ## Mitsubishi RV-6S
 
 `crs_sim.Rv6s` and `crs_sim.Rv6sGripper` stand in for
@@ -230,6 +244,52 @@ stack in a 40 mm size, so the universal hoop sits at the same place:
 `robot.hoop_in_flange` equals `HOOP_IN_FLANGE` (135 mm along the flange −x,
 12 mm out). Which way the hoop points around the flange axis on the real
 robot is an assumption, check it on the robot.
+
+## Bosch SR450
+
+`crs_sim.RobotBosch` stands in for
+[`ctu_bosch_sr450`](https://pypi.org/project/ctu-bosch-sr450/) 1.0.7:
+
+```python
+from ctu_bosch_sr450 import RobotBosch   # under ./sim.sh this is the simulator
+robot = RobotBosch()
+robot.initialize()                # hard home + soft home (no ARM POWER prompt)
+x, y, z, phi = robot.fk(q)        # q = [rad, rad, m, rad]
+q = robot.ik(x, y, z, phi)[0]     # all solutions in limits, shuffled
+robot.move_to_q(q)                # non-blocking
+robot.wait_for_motion_stop()
+robot.close()
+```
+
+| `ctu_bosch_sr450.RobotBosch`                                   | `crs_sim.RobotBosch`                                                      |
+| :------------------------------------------------------------- | :------------------------------------------------------------------------ |
+| `fk`, `ik`, `ik_xyz`, `link_lengths`, `q_min`, `q_max`, `q_home` | identical code, identical results                                       |
+| `move_to_q`, `get_q`, `in_motion`, `wait_for_motion_stop`      | as for the CRS97: non-blocking, real time, `q` quantized to IRC           |
+| `initialize`, `hard_home`, `soft_home`                         | hard home drives C, then A, B, D to 0 like the real one                   |
+| `set_speed(_relative)` / `set_acceleration(_relative)`         | change the simulated speeds / stored only                                 |
+| `grab_image`                                                   | the simulated overhead camera (calibrated on the RV-6S cell, not the Bosch's) |
+| `release`, `reset_motors`, `close`                             | no-ops                                                                    |
+
+The joints: `q[0]`, `q[1]` revolute (`q[1]` relative to arm 1), `q[2]` the
+height [m], `q[3]` the tool rotation measured from the base x axis (absolute,
+not relative to arm 2). `fk` returns a tuple, so the simulator adds
+`robot.flange_pose(q)`, the same as a 4x4 pose with z pointing down along the
+tool: the hoop is at `robot.flange_pose(q) @ robot.hoop_in_flange` and points
+along `phi`, 135 mm from the flange axis. `robot.model_q(q)` converts `q` to
+the URDF joint values; pass it to anything that takes URDF joint values, e.g.
+`robot.contact_checker.distance(robot.model_q(q))`.
+
+The base frame is on the floor plate under axis 1 (see the `ctu_bosch_sr450`
+README). The flange goes from z = 0.5 m down to only 0.17 m, so the
+launcher puts the table top at z = 0.15 m for the Bosch (`--table-z`
+overrides it). That height is an assumption; measure it on the real cell.
+
+The links (`crs_sim/urdf/SR450.urdf`) are boxes and cylinders sized after the
+SR450 data sheet, generated by `tools/make_bosch_urdf.py`. The adapter is
+`robot_ee/bosch_adapter.step` from ROB1-2025-hw (an 80 mm version of the same
+adapter stack), so `hoop_in_flange` equals `HOOP_IN_FLANGE`. Which way the hoop
+points around the tool axis on the real robot is an assumption; check it on the
+robot.
 
 ## Simulator-only options
 
@@ -324,4 +384,7 @@ robot.viz.viewer              # raw meshcat.Visualizer
 The kinematics and robot parameters are taken from `ctu_crs` (BSD 3-Clause,
 Copyright (c) 2023, CTURobotics). See `LICENSE-ctu_crs`. The RV-6S kinematics
 are taken from `ctu_mitsubishi` (BSD 3-Clause, Copyright (c) 2023,
-CTURobotics). See `LICENSE-ctu_mitsubishi`.
+CTURobotics). See `LICENSE-ctu_mitsubishi`. The SR450 kinematics are taken
+from `ctu_bosch_sr450` (BSD 3-Clause, Copyright (c) 2023, CTURobotics). See
+`LICENSE-ctu_bosch_sr450`. The adapter and hoop meshes are converted from
+[pilcsimo/ROB1-2025-hw](https://github.com/pilcsimo/ROB1-2025-hw) (GPL-3.0).

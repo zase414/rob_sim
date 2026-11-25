@@ -80,6 +80,8 @@ class SimRobot:
     #: True: the controller finishes each commanded motion before it starts
     #: the next one, commands sent while moving are queued (RV-6S).
     queue_motions = False
+    #: Table top height in the base frame the launcher uses by default [m]
+    default_table_z = 0.0
 
     def __init__(
         self,
@@ -128,7 +130,7 @@ class SimRobot:
         if visualize:
             from .visualizer import Visualizer
             self.viz = Visualizer(self.urdf_path, open_browser=open_browser)
-            self.viz.display(q0)
+            self.viz.display(self.model_q(q0))
             self._render_period = 1.0 / render_fps
             self._render_request = threading.Event()
             threading.Thread(target=self._render_loop, daemon=True).start()
@@ -159,6 +161,18 @@ class SimRobot:
     # ------------------------------------------------------------------
     # Simulator only
     # ------------------------------------------------------------------
+    def flange_pose(self, q: ArrayLike) -> np.ndarray:
+        """4x4 flange pose in the base frame, the hoop is at
+        ``flange_pose(q) @ hoop_in_flange``. Equals ``fk(q)`` except on robots
+        whose ``fk`` does not return a 4x4 pose (Bosch SR450)."""
+        return self.fk(q)
+
+    def model_q(self, q: ArrayLike) -> np.ndarray:
+        """Joint values of the URDF model (viewer, camera, contact checker)
+        for the robot's joint configuration q. The same except on the Bosch
+        SR450, whose last joint is absolute."""
+        return np.asarray(q, dtype=float)
+
     def q_at(self, t: float) -> np.ndarray:
         """
         Joint configuration at time t (time.monotonic() clock), also in the
@@ -242,7 +256,7 @@ class SimRobot:
         if self.contact_checker is None:
             return False
         q = self._current_q() if q is None else np.asarray(q, dtype=float)
-        return bool(self.contact_checker.check(q))
+        return bool(self.contact_checker.check(self.model_q(q)))
 
     # ------------------------------------------------------------------
     # Simulation internals
@@ -304,7 +318,7 @@ class SimRobot:
             self._render_request.clear()
             while True:
                 moving = not self._motion.finished(time.monotonic())
-                self.viz.display(self._current_q())
+                self.viz.display(self.model_q(self._current_q()))
                 if not moving:
                     break
                 time.sleep(self._render_period)
@@ -383,7 +397,7 @@ class SimRobot:
     def _check_contact(self, q: np.ndarray, t: float) -> None:
         for callback in self._monitors:
             callback(q, t)
-        contacts = self.contact_checker.check(q, t)
+        contacts = self.contact_checker.check(self.model_q(q), t)
         if contacts and not self._in_contact:
             event = ContactEvent(t, q, contacts)
             with self._contact_cond:

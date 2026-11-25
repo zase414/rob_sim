@@ -515,7 +515,7 @@ class RobotBody:
     def surfaces_at(self, t: float) -> list[tuple[Surface, np.ndarray]]:
         self.load()
         pin = self._pin
-        q = self.robot.q_at(t)
+        q = self.robot.model_q(self.robot.q_at(t))
         pin.forwardKinematics(self._model, self._data, q)
         pin.updateGeometryPlacements(self._model, self._data, self._visual,
                                      self._visual_data)

@@ -4,10 +4,11 @@ Run unmodified real-robot code in the simulator.
     python -m crs_sim.launch [scene options] script.py [script arguments]
     ./sim.sh --puzzle C --seed 7 src/main.py
 
-The script is written for the real robot (``from ctu_crs import CRS97`` or
-``from ctu_mitsubishi import Rv6s``) and knows nothing about the simulator.
-The launcher builds the scene from its own options, puts stand-in
-``ctu_crs`` and ``ctu_mitsubishi`` modules in ``sys.modules`` whose robot
+The script is written for the real robot (``from ctu_crs import CRS97``,
+``CRS93``, ``from ctu_mitsubishi import Rv6s`` or ``from ctu_bosch_sr450
+import RobotBosch``) and knows nothing about the simulator. The launcher
+builds the scene from its own options, puts stand-in ``ctu_crs``,
+``ctu_mitsubishi`` and ``ctu_bosch_sr450`` modules in ``sys.modules`` whose robot
 classes create the simulated robot with that scene added, and runs the
 script as ``__main__`` with its own arguments. Whichever robot the script
 creates is the one in the scene. When the script ends (also on an error or
@@ -28,7 +29,9 @@ from pathlib import Path
 
 import numpy as np
 
+from .bosch import RobotBosch as SimRobotBosch
 from .camera import Camera
+from .crs93 import CRS93 as SimCRS93
 from .crs97 import CRS97 as SimCRS97
 from .rv6s import Rv6s as SimRv6s
 from .rv6s import Rv6sGripper as SimRv6sGripper
@@ -45,6 +48,13 @@ class Scene:
         #: through the hoop [m], None if the hoop never got onto the wire
         self.lowest_threaded = None
 
+    @property
+    def table_z(self) -> float:
+        """Table top height: --table-z, else the robot's default."""
+        if self.args.table_z is not None:
+            return self.args.table_z
+        return getattr(self.robot, "default_table_z", 0.0)
+
     def camera(self) -> Camera:
         a = self.args
         fov = None if a.camera_fov is None else np.deg2rad(a.camera_fov)
@@ -57,7 +67,7 @@ class Scene:
         return camera
 
     def robot_class(self, base, real_args):
-        """Stand-in for a real robot class (ctu_crs.CRS97, ctu_mitsubishi.Rv6s):
+        """Stand-in for a real robot class (ctu_crs.CRS97, ctu_mitsubishi.Rv6s, ...):
         a subclass of the simulated robot ``base`` whose instances are the
         robot in the scene. It is a class, so the script can derive its own
         robot class from it (``class MyRobot(Rv6s)``). There is one robot,
@@ -97,7 +107,7 @@ class Scene:
         self.robot = robot
         if robot.viz is not None:
             robot.viz.show_box("table", [1.2, 1.2, 0.02],
-                               translation([0.3, 0, a.table_z - 0.01]),
+                               translation([0.3, 0, self.table_z - 0.01]),
                                color=0x8b6b4a)
         if a.puzzle != "none":
             self._add_puzzle(robot)
@@ -107,16 +117,16 @@ class Scene:
 
         a = self.args
         if a.seed is not None:
-            maze_pose = random_pose(a.seed, table_z=a.table_z)
+            maze_pose = random_pose(a.seed, table_z=self.table_z)
         else:
-            maze_pose = pose([a.x, a.y, a.table_z + BASE_PLATE_THICKNESS], a.yaw)
+            maze_pose = pose([a.x, a.y, self.table_z + BASE_PLATE_THICKNESS], a.yaw)
         self.puzzle = Puzzle(a.puzzle, maze_pose,
                              rotation_period=a.rotation_period,
                              rotation_center=a.rotation_center)
         robot.add_object(self.puzzle)
 
         def track_depth(q, t):
-            hoop = robot.fk(q) @ robot.hoop_in_flange
+            hoop = robot.flange_pose(q) @ robot.hoop_in_flange
             if self.puzzle.wire_through_hoop(hoop, t):
                 h = (np.linalg.inv(self.puzzle.pose_at(t)) @ hoop)[2, 3]
                 if self.lowest_threaded is None or h < self.lowest_threaded:
@@ -142,8 +152,8 @@ class Scene:
     def verdict(self) -> str:
         robot = self.robot
         if robot is None:
-            return ("The script never created a robot "
-                    "(ctu_crs.CRS97 or ctu_mitsubishi.Rv6s).")
+            return ("The script never created a robot (ctu_crs.CRS97 / CRS93, "
+                    "ctu_mitsubishi.Rv6s or ctu_bosch_sr450.RobotBosch).")
         # the robot may still be executing the commanded motions (the RV-6S
         # keeps moving after the script ends) and the contact check may
         # still be catching up with them
@@ -165,16 +175,17 @@ class Scene:
 
 
 def fake_ctu_crs(scene: Scene) -> types.ModuleType:
-    """A ``ctu_crs`` module whose CRS97 is the simulated robot of the scene."""
+    """A ``ctu_crs`` module whose CRS97 / CRS93 is the simulated robot of the scene."""
     module = types.ModuleType("ctu_crs")
-    module.__doc__ = "crs_sim stand-in for ctu_crs (only CRS97 is simulated)"
-    module.CRS97 = scene.robot_class(
-        SimCRS97,
-        lambda tty_dev="/dev/mars", baudrate=19200, **kwargs: (tty_dev, baudrate))
+    module.__doc__ = "crs_sim stand-in for ctu_crs"
+    for name, base in (("CRS97", SimCRS97), ("CRS93", SimCRS93)):
+        setattr(module, name, scene.robot_class(
+            base,
+            lambda tty_dev="/dev/mars", baudrate=19200, **kwargs: (tty_dev, baudrate)))
 
     def missing(name):
         raise AttributeError(f"ctu_crs.{name} is not simulated by crs_sim, "
-                             "only CRS97 is")
+                             "only CRS93 and CRS97 are")
     module.__getattr__ = missing
     return module
 
@@ -196,11 +207,27 @@ def fake_ctu_mitsubishi(scene: Scene) -> types.ModuleType:
     return module
 
 
+def fake_ctu_bosch_sr450(scene: Scene) -> types.ModuleType:
+    """A ``ctu_bosch_sr450`` module whose RobotBosch is the simulated robot of the scene."""
+    module = types.ModuleType("ctu_bosch_sr450")
+    module.__doc__ = "crs_sim stand-in for ctu_bosch_sr450"
+    module.RobotBosch = scene.robot_class(
+        SimRobotBosch,
+        lambda tty_dev="/dev/mars", baudrate=19200: (tty_dev, baudrate))
+
+    def missing(name):
+        raise AttributeError(f"ctu_bosch_sr450.{name} is not simulated by crs_sim, "
+                             "only RobotBosch is")
+    module.__getattr__ = missing
+    return module
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="python -m crs_sim.launch",
-        description="Run real-robot code (from ctu_crs import CRS97 / "
-                    "from ctu_mitsubishi import Rv6s) in the simulator.",
+        description="Run real-robot code (from ctu_crs import CRS97 / CRS93, "
+                    "from ctu_mitsubishi import Rv6s, from ctu_bosch_sr450 "
+                    "import RobotBosch) in the simulator.",
         epilog="Scene options go before the script, the script's own after it.")
     scene = parser.add_argument_group("scene")
     scene.add_argument("--puzzle", default="A", choices=[*"ABCDE", "none"])
@@ -209,8 +236,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     scene.add_argument("--x", type=float, default=0.45, help="puzzle position [m]")
     scene.add_argument("--y", type=float, default=0.0, help="puzzle position [m]")
     scene.add_argument("--yaw", type=float, default=0.0, help="puzzle rotation [rad]")
-    scene.add_argument("--table-z", type=float, default=0.0,
-                       help="table top height in the robot base frame [m]")
+    scene.add_argument("--table-z", type=float, default=None,
+                       help="table top height in the robot base frame [m] "
+                            "(default: 0, 0.15 for the Bosch SR450)")
     scene.add_argument("--rotation-period", type=float, default=None,
                        help="the puzzle turns about a vertical axis once per "
                             "this many seconds, negative = clockwise "
@@ -260,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     script = Path(args.script).resolve()
     sys.modules["ctu_crs"] = fake_ctu_crs(scene)
     sys.modules["ctu_mitsubishi"] = fake_ctu_mitsubishi(scene)
+    sys.modules["ctu_bosch_sr450"] = fake_ctu_bosch_sr450(scene)
     sys.argv = [str(script), *args.script_args]
     sys.path.insert(0, str(script.parent))   # as `python script.py` does
 

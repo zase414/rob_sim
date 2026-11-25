@@ -67,3 +67,13 @@ def test_speed_changes_duration():
         durations.append(time.monotonic() - t)
     assert durations[1] > 2 * durations[0]
 
+
+
+def test_crs93_has_its_own_parameters():
+    from crs_sim import CRS93
+    r93 = CRS93(visualize=False, camera=False)
+    r97 = CRS97(visualize=False, camera=False)
+    assert not np.allclose(r93.q_min, r97.q_min)
+    q = r93.q_home + [0.3, 0.2, 0.0, 0.0, 0.1, 0.5]
+    assert np.allclose(r93.fk(q), r97.fk(q))      # same arm
+    assert r93._camera_name == "camera-crs93"
