@@ -24,13 +24,14 @@ browser window.
 
 ```bash
 git clone https://github.com/zase414/rob_sim.git && cd rob_sim
-./setup_venv.sh            # creates .venv, installs crs_sim (editable) + pytest + STEP support
+./setup_venv.sh            # creates .venv, installs crs_sim (editable) + pytest
 source .venv/bin/activate
 ```
 
-`PYTHON=python3.11 ./setup_venv.sh` picks a different interpreter and
-`EXTRAS=dev ./setup_venv.sh` skips the CAD/STEP support (~100 MB, OpenCASCADE). To use the
-package from another environment (e.g. a conda env), run `pip install -e /path/to/rob_sim`.
+`PYTHON=python3.11 ./setup_venv.sh` picks a different interpreter. To use the
+package from another environment (e.g. a conda env, or on Windows where the
+shell scripts do not run), run `pip install -e /path/to/rob_sim` and replace
+`./sim.sh` with `python -m crs_sim.launch`.
 
 Quick start:
 
@@ -44,9 +45,11 @@ Quick start:
 cannot leak its packages (and pytest plugins) into the venv. If you activate the
 venv manually with ROS sourced, run `unset PYTHONPATH` first.
 
-Dependencies: `numpy`, `pin` (pinocchio) and `meshcat`; the optional `step` extra
-(`trimesh`, `cascadio`) loads CAD files. The real-robot packages (`ctu_crs`,
-`pypylon`, serial port drivers) are **not** needed.
+Dependencies: `numpy`, `pin` (pinocchio), `meshcat`, `opencv-python`,
+`moderngl`, `trimesh` and `cascadio` (CAD loading), all installed by pip. The
+real-robot packages (`ctu_crs`, `ctu_mitsubishi`, `ctu_bosch_sr450`, `pypylon`,
+serial port drivers) are **not** needed. No network access is needed after
+the install: every CAD model ships with the package.
 
 ## Your solution: `src/main.py`
 
@@ -164,8 +167,8 @@ With the launcher: `./sim.sh --puzzle C --rotation-period 20 --rotation-center
 puzzle turning into a robot standing still is not reported.
 
 The CAD models come from [pilcsimo/ROB1-2025-hw](https://github.com/pilcsimo/ROB1-2025-hw)
-(GPL-3.0). They are **not** included here; `download_puzzles()` fetches them to
-`~/.cache/crs_sim/` on first use (needs the `step` extra). `crs_sim.puzzles`
+(GPL-3.0) and are bundled in `crs_sim/cad/` (`crs_sim.puzzles.puzzle_files()`
+gives their paths). `crs_sim.puzzles`
 also has the hoop offset `HOOP_IN_FLANGE` (hoop center pose =
 `robot.fk(q) @ HOOP_IN_FLANGE`, the wire passes along its z axis), the hoop
 opening `HOOP_INNER_RADIUS` (30 mm) and the wire center line of puzzle A as an
@@ -370,7 +373,7 @@ added to the camera too (`Surface(triangles=..., color=...)` or
 robot.viz.show_points("path", points_nx3, color=0xffa500, radius=0.005)
 robot.viz.show_frame("target", pose_4x4, scale=0.1)
 robot.viz.show_box("table", [1.8, 0.8, 0.02], pose_4x4, opacity=0.3)
-robot.viz.show_mesh("part", "part.step", pose_4x4)   # any CAD file, needs the step extra
+robot.viz.show_mesh("part", "part.step", pose_4x4)   # any CAD file (STEP, STL, OBJ)
 robot.viz.show_cylinder("post", radius, length, pose_4x4)  # axis = pose z, from its origin up
 robot.viz.show_lines("lines", segments_nx2x3)
 robot.viz.set_pose("post", pose_4x4)                 # move an object already drawn
@@ -380,6 +383,9 @@ robot.viz.viewer              # raw meshcat.Visualizer
 ```
 
 ## License
+
+The project is licensed under the GNU GPL v3.0 (see `LICENSE`), because it
+bundles the GPL-3.0 CAD models of ROB1-2025-hw.
 
 The kinematics and robot parameters are taken from `ctu_crs` (BSD 3-Clause,
 Copyright (c) 2023, CTURobotics). See `LICENSE-ctu_crs`. The RV-6S kinematics

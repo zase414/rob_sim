@@ -7,6 +7,7 @@ name = "crs-sim"
 version = "0.1.0"
 description = "Standalone MeshCat simulator of the CRS93/CRS97, Mitsubishi RV-6S and Bosch SR450 arms with the ctu_crs / ctu_mitsubishi / ctu_bosch_sr450 interfaces"
 readme = "README.md"
+license = {text = "GPL-3.0-only"}
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24",
@@ -20,9 +21,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+# kept so that older install commands (pip install -e ".[step]") still work
+step = []
 
 [tool.setuptools.packages.find]
 include = ["crs_sim*"]
 
 [tool.setuptools.package-data]
-crs_sim = ["urdf/*.urdf", "urdf/meshes/*.stl"]
+crs_sim = ["urdf/*.urdf", "urdf/meshes/*.stl", "cad/*/*.step"]

@@ -9,8 +9,8 @@ the hoop is the same mesh the other robots use.
 
     python tools/make_bosch_urdf.py [path/to/bosch_adapter.step]
 
-Without the STEP path the existing meshes/bosch_adapter.stl is kept.
-Needs trimesh (and cascadio for the STEP file), i.e. the `step` extra.
+Without the STEP path the existing meshes/bosch_adapter.stl is kept (the
+STEP file is bundled as crs_sim/cad/robot_ee/bosch_adapter.step).
 """
 from __future__ import annotations
 

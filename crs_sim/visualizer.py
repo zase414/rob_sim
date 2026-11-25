@@ -222,7 +222,7 @@ def load_mesh(path: str | Path):
         import trimesh
     except ImportError as e:
         raise ImportError(
-            "Loading meshes needs the 'step' extra: pip install 'crs-sim[step]'"
+            "Loading meshes needs trimesh and cascadio, reinstall: pip install -e ."
         ) from e
     path = Path(path)
     if not path.exists():

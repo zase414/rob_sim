@@ -1,7 +1,6 @@
 import ast
 import subprocess
 import sys
-import urllib.error
 from pathlib import Path
 
 import numpy as np
@@ -93,11 +92,8 @@ def launch(*args, cwd=ROOT):
 @pytest.fixture(scope="module")
 def puzzle_files():
     pytest.importorskip("trimesh")
-    from crs_sim.puzzles import download_puzzles
-    try:
-        download_puzzles(names=["A", "base"])
-    except (urllib.error.URLError, OSError) as e:
-        pytest.skip(f"puzzle CAD files not available: {e}")
+    from crs_sim.puzzles import puzzle_files
+    assert all(p.exists() for p in puzzle_files().values())
 
 
 @pytest.mark.parametrize("bump", [False, True])

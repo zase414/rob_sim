@@ -14,6 +14,16 @@ git clone https://github.com/zase414/rob_sim.git && cd rob_sim
 ./setup_venv.sh            # creates .venv, installs the simulator + pytest
 ```
 
+Needs Python 3.10 or newer. Everything, the puzzle CAD models included, ships with
+the repo, so nothing is downloaded later.
+
+Without the shell scripts (Windows, conda, an existing venv):
+
+```bash
+pip install -e .                          # in the environment of your choice
+python -m crs_sim.launch src/main.py      # = ./sim.sh src/main.py
+```
+
 ## How to use
 
 Write `src/main.py` as normal real-robot code, starting with
@@ -61,13 +71,15 @@ simulator is to the real robots) is in [README.AGENTS.md](README.AGENTS.md).
 This is a fork of [Amanak421/crs_sim](https://github.com/Amanak421/crs_sim) by
 Jakub Andrlík, cut down to a clean starting point for students.
 
-The puzzle, adapter and hoop CAD models come from
-[pilcsimo/ROB1-2025-hw](https://github.com/pilcsimo/ROB1-2025-hw) (GPL-3.0).
-The puzzles are not included here; they are downloaded to `~/.cache/crs_sim/`
-the first time you use them. The adapter and hoop meshes in
-`crs_sim/urdf/meshes/` are converted from its `robot_ee/*.step` files.
+The puzzle, base plate, adapter and hoop CAD models come from
+[pilcsimo/ROB1-2025-hw](https://github.com/pilcsimo/ROB1-2025-hw) (GPL-3.0)
+and are bundled in `crs_sim/cad/`. The adapter and hoop meshes in
+`crs_sim/urdf/meshes/` are converted from them.
 
 ## License
+
+GNU General Public License v3.0, see [LICENSE](LICENSE). The project bundles
+the GPL-3.0 CAD models above, so it is GPL-3.0 as a whole.
 
 The kinematics and robot parameters are taken from `ctu_crs` (BSD 3-Clause,
 Copyright (c) 2023, CTURobotics), see [LICENSE-ctu_crs](LICENSE-ctu_crs). The

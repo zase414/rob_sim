@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Create .venv and install crs_sim into it (editable) with dev tools and
-# CAD loading (STEP support adds ~100 MB, skip it with EXTRAS=dev).
+# Create .venv and install crs_sim into it (editable) with pytest.
 # Usage: ./setup_venv.sh            (uses python3)
 #        PYTHON=python3.11 ./setup_venv.sh
 set -euo pipefail
@@ -8,7 +7,7 @@ cd "$(dirname "$0")"
 
 PYTHON="${PYTHON:-python3}"
 VENV_DIR="${VENV_DIR:-.venv}"
-EXTRAS="${EXTRAS:-dev,step}"
+EXTRAS="${EXTRAS:-dev}"
 
 if [ ! -d "$VENV_DIR" ]; then
     echo "Creating $VENV_DIR with $($PYTHON --version)"

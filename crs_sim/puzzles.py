@@ -6,8 +6,8 @@ puzzle A as an example of a path.
 Each puzzle is a bent 10x10 mm wire plugged into a base plate. The task is to
 thread the hoop mounted on the robot over the wire from its free end down to
 the base and back without touching it. The CAD models (STEP) come from
-https://github.com/pilcsimo/ROB1-2025-hw (GPL-3.0) and are downloaded on demand
-by :func:`download_puzzles`, they are not part of this package.
+https://github.com/pilcsimo/ROB1-2025-hw (GPL-3.0) and ship with this package
+(``crs_sim/cad``), nothing is downloaded.
 
     puzzle = Puzzle("B", random_pose(seed))
     robot.add_object(puzzle)     # viewer + camera + contact checking
@@ -25,8 +25,6 @@ from __future__ import annotations
 
 import threading
 import time
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -51,41 +49,32 @@ MARKER_SIZE = 0.04
 MARKER_CENTERS = {1: (-0.0375, 0.0375), 2: (0.0375, -0.0375)}
 
 PUZZLES_REPO_URL = "https://github.com/pilcsimo/ROB1-2025-hw"
-_RAW_URL = "https://raw.githubusercontent.com/pilcsimo/ROB1-2025-hw/main/"
+#: Bundled copy of the ROB1-2025-hw CAD files
+CAD_DIR = Path(__file__).parent / "cad"
 PUZZLE_FILES = {
     **{name: f"puzzles/{name}.step" for name in "ABCDE"},
-    "base": "bases/base 01-02.step",
+    "base": "bases/base_01-02.step",
     "hoop": "robot_ee/Hoop.step",
+    "CRS_adapter": "robot_ee/CRS_adapter.step",
+    "mitsubishi_adapter": "robot_ee/mitsubishi_adapter.step",
+    "bosch_adapter": "robot_ee/bosch_adapter.step",
 }
 
 
-def default_cache_dir() -> Path:
-    """Directory the CAD files are downloaded to."""
-    return Path.home() / ".cache" / "crs_sim" / "ROB1-2025-hw"
+def puzzle_files(names: list[str] | None = None) -> dict[str, Path]:
+    """
+    Paths of the bundled STEP models.
+    :param names: subset of PUZZLE_FILES keys, all if None
+    :return: name -> path
+    """
+    return {name: CAD_DIR / PUZZLE_FILES[name] for name in names or PUZZLE_FILES}
 
 
 def download_puzzles(cache_dir: str | Path | None = None,
                      names: list[str] | None = None) -> dict[str, Path]:
-    """
-    Download the STEP models of the puzzles (skips files already present).
-    :param cache_dir: target directory, :func:`default_cache_dir` if None
-    :param names: subset of PUZZLE_FILES keys, all if None
-    :return: name -> local path
-    """
-    cache_dir = Path(cache_dir) if cache_dir is not None else default_cache_dir()
-    paths = {}
-    for name in names or PUZZLE_FILES:
-        rel = PUZZLE_FILES[name]
-        path = cache_dir / rel
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            url = _RAW_URL + urllib.parse.quote(rel)
-            print(f"Downloading {url}")
-            tmp = path.with_suffix(".part")
-            urllib.request.urlretrieve(url, tmp)
-            tmp.rename(path)
-        paths[name] = path
-    return paths
+    """Kept for compatibility: the files are bundled now, returns
+    :func:`puzzle_files` (``cache_dir`` is ignored)."""
+    return puzzle_files(names)
 
 
 # ----------------------------------------------------------------------
@@ -147,8 +136,7 @@ class Puzzle:
         ...
         robot.contacts        # every time the robot touched the puzzle
 
-    The meshes come from the STEP files (downloaded on first use, needs the
-    ``step`` extra). The base plate is white with raised black marker cells,
+    The meshes come from the bundled STEP files. The base plate is white with raised black marker cells,
     as printed, so the markers can be detected in ``robot.grab_image()``
     (``cv2.aruco``, DICT_4X4_50, IDs 1 and 2, 40 mm).
 
@@ -173,7 +161,6 @@ class Puzzle:
     def __init__(self, name: str, pose: np.ndarray, color: int = 0xffa500,
                  base_color: int = 0xf0f0f0, marker_color: int = 0x202020,
                  spacing: float = 0.0015,
-                 cache_dir: str | Path | None = None,
                  rotation_period: float | None = None,
                  rotation_center: ArrayLike = (0.0, 0.0)) -> None:
         from .visualizer import load_mesh
@@ -189,7 +176,7 @@ class Puzzle:
         self.rotation_center = np.array([*rotation_center, 0.0][:3], dtype=float)
         #: Start of the rotation (time.monotonic() clock)
         self.t0 = time.monotonic()
-        files = download_puzzles(cache_dir, names=[name, "base"])
+        files = puzzle_files([name, "base"])
         self.wire_mesh = load_mesh(files[name])
         base = load_mesh(files["base"])
         # the raised marker cells are the only faces above the plate top
@@ -395,11 +382,11 @@ def show_puzzle(viz, name: str, maze_pose: np.ndarray, cad: bool = True,
     """
     Draw a puzzle into the viewer only (no camera, no contacts, see
     :class:`Puzzle` and ``robot.add_object`` for that): base plate and wire
-    from the STEP models (downloaded on first use) and/or the wire center line.
+    from the STEP models and/or the wire center line.
     :param viz: crs_sim.Visualizer (``robot.viz``)
     :param name: "A" - "E"
     :param maze_pose: 4x4 pose of the maze frame in the robot base frame
-    :param cad: draw the CAD models (needs the ``step`` extra)
+    :param cad: draw the CAD models
     :param path: draw the wire center line as points (if it is in MAZES)
     :param color: color of the wire
     """
